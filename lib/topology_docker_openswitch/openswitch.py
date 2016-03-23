@@ -77,6 +77,16 @@ def create_interfaces():
     in_swns = check_output(shsplit(
         'ip netns exec swns ls /sys/class/net/'
     )).split()
+    logging.info(
+            '  - Not in swns {not_in_swns} '.format(
+                **locals()
+            )
+        )
+    logging.info(
+            '  - In swns {in_swns} '.format(
+                **locals()
+            )
+        )
 
     create_cmd_tpl = 'ip tuntap add dev {hwport} mode tap'
     netns_cmd_tpl = 'ip link set {hwport} netns swns'
@@ -87,7 +97,12 @@ def create_interfaces():
 
     # Map the port with the labels
     for portlbl in not_in_swns:
-        if portlbl in ['lo', 'oobm', 'bonding_masters']:
+        logging.info(
+            '  - Port {portlbl} found'.format(
+                **locals()
+            )
+        )
+        if portlbl in ['lo', 'oobm', 'eth0', 'bonding_masters']:
             continue
         hwport = hwports.pop(0)
         mapping_ports[portlbl] = hwport
@@ -224,7 +239,7 @@ class OpenSwitchNode(DockerNode):
         super(OpenSwitchNode, self).__init__(
             identifier, image=image, command='/sbin/init',
             binds=';'.join(container_binds), hostname='switch',
-            **kwargs
+            network_mode='bridge', **kwargs
         )
 
         # Save location of the shared dir in host
