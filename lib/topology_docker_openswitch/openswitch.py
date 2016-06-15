@@ -25,9 +25,9 @@ from __future__ import unicode_literals, absolute_import
 from __future__ import print_function, division
 
 from json import loads
+from subprocess import check_call
 
 from topology_docker.node import DockerNode
-from topology_docker.utils import ensure_dir
 from topology_docker.shell import DockerShell, DockerBashShell
 
 
@@ -43,7 +43,7 @@ from socket import AF_UNIX, SOCK_STREAM, socket, gethostname
 
 import yaml
 
-config_timeout = 100
+config_timeout = 300
 swns_netns = '/var/run/netns/swns'
 hwdesc_dir = '/etc/openswitch/hwdesc'
 db_sock = '/var/run/openvswitch/db.sock'
@@ -111,8 +111,11 @@ def create_interfaces():
                 **locals()
             )
         )
-        check_call(shsplit(rename_int.format(**locals())))
-        check_call(shsplit(netns_cmd_tpl.format(hwport=hwport)))
+        try:
+            check_call(shsplit(rename_int.format(**locals())))
+            check_call(shsplit(netns_cmd_tpl.format(hwport=hwport)))
+        except:
+            raise Exception('Failed to map ports with port labels')
 
     # Writting mapping to file
     with open('/tmp/port_mapping.json', 'w') as json_file:
@@ -124,8 +127,15 @@ def create_interfaces():
             continue
 
         logging.info('  - Port {} created.'.format(hwport))
-        check_call(shsplit(create_cmd_tpl.format(hwport=hwport)))
-        check_call(shsplit(netns_cmd_tpl.format(hwport=hwport)))
+        try:
+            check_call(shsplit(create_cmd_tpl.format(hwport=hwport)))
+        except:
+            raise Exception('Failed to create tuntap')
+
+        try:
+            check_call(shsplit(netns_cmd_tpl.format(hwport=hwport)))
+        except:
+            raise Exception('Failed to move port to swns netns')
     check_call(shsplit('touch /tmp/ops-virt-ports-ready'))
     logging.info('  - Ports readiness notified to the image')
 
@@ -208,6 +218,21 @@ if __name__ == '__main__':
 """
 
 
+PROCESS_LOG = """
+#!/bin/bash
+ovs-vsctl list Daemon >> /tmp/logs
+echo "Coredump -->" >> /tmp/logs
+coredumpctl gdb >> /tmp/logs
+echo "All the running processes:" >> /tmp/logs
+ps -aef >> /tmp/logs
+
+systemctl status >> /tmp/systemctl
+systemctl --state=failed --all >> /tmp/systemctl
+
+ovsdb-client dump >> /tmp/ovsdb_dump
+"""
+
+
 class OpenSwitchNode(DockerNode):
     """
     Custom OpenSwitch node for the Topology Docker platform engine.
@@ -223,13 +248,8 @@ class OpenSwitchNode(DockerNode):
             image='topology/ops:latest', binds=None,
             **kwargs):
 
-        # Determine shared directory
-        shared_dir = '/tmp/topology_{}_{}'.format(identifier, str(id(self)))
-        ensure_dir(shared_dir)
-
         # Add binded directories
         container_binds = [
-            '{}:/tmp'.format(shared_dir),
             '/dev/log:/dev/log',
             '/sys/fs/cgroup:/sys/fs/cgroup:ro'
         ]
@@ -241,9 +261,6 @@ class OpenSwitchNode(DockerNode):
             binds=';'.join(container_binds), hostname='switch',
             network_mode='bridge', **kwargs
         )
-
-        # Save location of the shared dir in host
-        self.shared_dir = shared_dir
 
         # Add vtysh (default) shell
         # FIXME: Create a subclass to handle better the particularities of
@@ -287,12 +304,36 @@ class OpenSwitchNode(DockerNode):
         #. Assign an interface to each port label.
         #. Create remaining interfaces.
         """
+
+        # Write the log gathering script
+        process_log = '{}/process_log.sh'.format(self.shared_dir)
+        with open(process_log, "w") as fd:
+            fd.write(PROCESS_LOG)
+        check_call('chmod 755 {}/process_log.sh'.format(self.shared_dir),
+                   shell=True)
+
         # Write and execute setup script
         setup_script = '{}/openswitch_setup.py'.format(self.shared_dir)
         with open(setup_script, 'w') as fd:
             fd.write(SETUP_SCRIPT)
 
-        self._docker_exec('python /tmp/openswitch_setup.py -d')
+        try:
+            self._docker_exec('python /tmp/openswitch_setup.py -d')
+        except Exception as e:
+            check_call('touch {}/logs'.format(self.shared_dir), shell=True)
+            check_call('chmod 766 {}/logs'.format(self.shared_dir),
+                       shell=True)
+            self._docker_exec('/bin/bash /tmp/process_log.sh')
+            check_call(
+                'tail -n 2000 /var/log/syslog > {}/syslog'.format(
+                    self.shared_dir
+                ), shell=True)
+            check_call(
+                'docker ps -a >> {}/logs'.format(self.shared_dir),
+                shell=True
+            )
+            check_call('cat {}/logs'.format(self.shared_dir), shell=True)
+            raise e
 
         # Read back port mapping
         port_mapping = '{}/port_mapping.json'.format(self.shared_dir)
