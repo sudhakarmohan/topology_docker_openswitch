@@ -263,6 +263,9 @@ class OpenSwitchNode(DockerNode):
             network_mode='bridge', **kwargs
         )
 
+        # FIXME: Remove this attribute to merge with version > 1.6.0
+        self.shared_dir_mount = '/tmp'
+
         # Add vtysh (default) shell
         # FIXME: Create a subclass to handle better the particularities of
         # vtysh, like prompt setup etc.
