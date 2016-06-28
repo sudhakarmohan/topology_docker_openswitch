@@ -50,13 +50,16 @@ def pytest_runtest_teardown(item):
                             shell='bash',
                             silent=True
                         )
+                        localtime = time.localtime(time.time())
+                        print "Local current time :", localtime
                         node_obj.send_command(
                             'systemctl stop switchd',
                             shell='bash',
                             silent=False
                         )
-                        sleep(15)
-                        logging.info('stopping switchd...')
+                        time.sleep(15)
+                        localtime = time.localtime(time.time())
+                        print "Local current time after sleep :", localtime
                     except Error:
                         warning(
                             'Unable to get {} from container'.format(logs_path)
