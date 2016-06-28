@@ -16,11 +16,13 @@
 # under the License.
 
 import logging
+import time
 
 from os.path import exists, basename, splitext
 from os import makedirs
 from shutil import copytree, Error
 from logging import warning
+from time import sleep
 
 
 
