@@ -59,7 +59,7 @@ def pytest_runtest_teardown(item):
                         )
                         time.sleep(15)
                         localtime = time.localtime(time.time())
-                        print "Local current time after sleep :", localtime
+                        print ("Local current time after sleep :", localtime)
                     except Error:
                         warning(
                             'Unable to get {} from container'.format(logs_path)
