@@ -45,7 +45,7 @@ def pytest_runtest_teardown(item):
                             silent=True
                         )
                         node_obj.send_command(
-                            'systemctl stop ops-switchd,
+                            'systemctl stop ops-switchd',
                             shell='bash',
                             silent=False
                         )
