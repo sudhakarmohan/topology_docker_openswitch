@@ -53,6 +53,7 @@ def pytest_runtest_teardown(item):
                             shell='bash',
                             silent=False
                         )
+                        sleep(5)
                         logging.info('stopping switchd...')
                     except Error:
                         warning(
