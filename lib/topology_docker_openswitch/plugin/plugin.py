@@ -44,6 +44,12 @@ def pytest_runtest_teardown(item):
                             shell='bash',
                             silent=True
                         )
+                        node_obj.send_command(
+                            'systemctl stop ops-switchd,
+                            shell='bash',
+                            silent=False
+                        )
+                        logging.info('stopping switchd...')
                     except Error:
                         warning(
                             'Unable to get {} from container'.format(logs_path)
