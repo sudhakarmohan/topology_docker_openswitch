@@ -57,7 +57,7 @@ def pytest_runtest_teardown(item):
                             shell='bash',
                             silent=False
                         )
-                        time.sleep(80)
+                        time.sleep(15)
                         localtime = time.localtime(time.time())
                         print ("Local current time after sleep :", localtime)
                     except Error:
