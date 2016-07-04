@@ -55,9 +55,9 @@ def pytest_runtest_teardown(item):
                         node_obj.send_command(
                             'systemctl stop switchd',
                             shell='bash',
-                            silent=False
+                            silent=False, timeout=180
                         )
-                        time.sleep(120)
+                        time.sleep(15)
                         localtime = time.localtime(time.time())
                         print ("Local current time after sleep :", localtime)
                     except Error:
